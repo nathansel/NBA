@@ -71,7 +71,7 @@
       <div class="row">
         <div style="flex:1;min-width:330px">
           <h2>Enter & Verify - Direct and Final</h2>
-          <div class="muted">Direct % is from all components (CIE Descriptive + CIE Objective + Assignment + SEE). Final % = <span class="k">0.8 × Direct + 0.2 × Indirect</span>.</div>
+          <div class="muted">Compute Direct % from the table (all components). Final % = <span class="k">0.8 × Direct + 0.2 × Indirect</span>.</div>
 
           <h3>A) Direct CO Attainment (%)</h3>
           <div id="answerFormDirect"></div>
@@ -101,7 +101,7 @@
         <div style="flex:1;min-width:330px">
           <h2>Notes (Instructor)</h2>
           <div class="muted" style="line-height:1.5">
-            • Direct % is computed from all components.<br/>
+            • Table shows only random marks (obt/max) and <b>Total Denominator</b> per CO (sum of maxima).<br/>
             • Indirect % is a single randomized value <span class="k">50-100</span> per CO.<br/>
             • Use the <b>seed lock</b> to share a fixed dataset URL.
           </div>
@@ -115,7 +115,7 @@
 const CO_LIST = ["CO1","CO2","CO3","CO4","CO5"];
 const CO_MAX = {
   CO1: { desc:34, obj:20, assign:4, see:20 },
-  CO2: { desc:32, obj:20, assign:4, see:20 },
+  CO2: { desc:32, obj:20, assign:4, see:20 },  // 16+16, 10+10 flattened
   CO3: { desc:34, obj:20, assign:4, see:20 },
   CO4: { desc:25, obj:20, assign:4, see:20 },
   CO5: { desc:25, obj:20, assign:4, see:20 }
@@ -130,7 +130,8 @@ function rngFactory(seed){
 function getUrlSeed(){const m=location.hash.match(/seed=(.+)/);return m?m[1]:null;}
 function setUrlSeed(seed){location.replace(location.href.split('#')[0]+'#seed='+seed);}
 
-let rng = rngFactory(getUrlSeed()); let currentSeed = getUrlSeed() || Math.floor(Math.random()*1e9);
+let rng = rngFactory(getUrlSeed());
+let currentSeed = getUrlSeed() || Math.floor(Math.random()*1e9);
 let dataset = null;
 
 function fmtPct(x){return (Math.round(x*100)/100).toFixed(2);}
@@ -142,13 +143,14 @@ function generateDataset(){
     const m=CO_MAX[co];
     const desc=Math.round(rng()*m.desc);
     const obj=Math.round(rng()*m.obj);
-    const assign=Math.floor(rng()*4)+1;
-    const see=Math.round(rng()*m.see);
-    const indirect=Math.floor(rng()*51)+50;
+    const assign=Math.floor(rng()*4)+1;   // 1..4
+    const see=Math.round(rng()*m.see);    // 0..20
+    const indirect=Math.floor(rng()*51)+50; // 50..100
     rows.push({co,desc,obj,assign,see,indirect,max:m});
   });
   return {rows};
 }
+
 function computePerCO(ds){
   const per={};
   ds.rows.forEach(r=>{
@@ -160,32 +162,60 @@ function computePerCO(ds){
     const directPct=totalMax?(totalObt/totalMax*100):0;
     const indirectPct=r.indirect;
     const finalPct=0.8*directPct+0.2*indirectPct;
-    per[r.co]={directPct:Number(fmtPct(directPct)), indirectPct, finalPct:Number(fmtPct(finalPct)), parts:r};
+    per[r.co]={directPct:Number(fmtPct(directPct)), indirectPct, finalPct:Number(fmtPct(finalPct)), totalMax};
   });
   return per;
 }
+
 function renderMarksTable(ds){
-  let html='<table><thead><tr><th>CO</th><th>Desc</th><th>Obj</th><th>Assign</th><th>SEE</th><th>Direct %</th></tr></thead><tbody>';
+  const per = computePerCO(ds);
+  let html = '<table><thead><tr>' +
+    '<th>CO</th><th>CIE Descriptive (obt/max)</th><th>CIE Objective (obt/max)</th>' +
+    '<th>Assignment (obt/max)</th><th>SEE (obt/max)</th><th>Total Denominator (sum of maxima)</th>' +
+    '</tr></thead><tbody>';
   ds.rows.forEach(r=>{
-    const per=computePerCO(ds)[r.co];
-    html+=`<tr><td>${r.co}</td><td>${r.desc}/${r.max.desc}</td><td>${r.obj}/${r.max.obj}</td><td>${r.assign}/${r.max.assign}</td><td>${r.see}/${r.max.see}</td><td>${fmtPct(per.directPct)}%</td></tr>`;
+    const totalDen = per[r.co].totalMax; // (desc+obj+assign+see) maxima
+    html += `<tr>
+      <td><b>${r.co}</b></td>
+      <td>${r.desc}/${r.max.desc}</td>
+      <td>${r.obj}/${r.max.obj}</td>
+      <td>${r.assign}/${r.max.assign}</td>
+      <td>${r.see}/${r.max.see}</td>
+      <td>${totalDen}</td>
+    </tr>`;
   });
-  html+='</tbody></table>';
-  html+='<div class="hr"></div><h2>Indirect (%)</h2><table><tr><th>CO</th><th>Indirect %</th></tr>';
-  ds.rows.forEach(r=>{html+=`<tr><td>${r.co}</td><td>${r.indirect}%</td></tr>`;});
-  html+='</table>';
-  document.getElementById("marksTableWrap").innerHTML=html;
+  html += '</tbody></table>';
+
+  // Indirect shown separately
+  html += '<div class="hr"></div><h2>Indirect (%)</h2><table><thead><tr><th>CO</th><th>Indirect % (given)</th></tr></thead><tbody>';
+  ds.rows.forEach(r=>{
+    html += `<tr><td><b>${r.co}</b></td><td>${r.indirect}%</td></tr>`;
+  });
+  html += '</tbody></table>';
+
+  document.getElementById("marksTableWrap").innerHTML = html;
 }
+
 function renderAnswerForms(){
   let d="",f="";
   CO_LIST.forEach(co=>{
-    d+=`<div><b>${co}</b> <input data-co="${co}" class="ans-direct" type="number" step="0.01" placeholder="Direct %"> %</div>`;
-    f+=`<div><b>${co}</b> <input data-co="${co}" class="ans-final" type="number" step="0.01" placeholder="Final %"> %</div>`;
+    d += `<div><b>${co}</b> <input data-co="${co}" class="ans-direct" type="number" step="0.01" placeholder="Direct %"> %</div>`;
+    f += `<div><b>${co}</b> <input data-co="${co}" class="ans-final" type="number" step="0.01" placeholder="Final % = 0.8×Direct + 0.2×Indirect"> %</div>`;
   });
   document.getElementById("answerFormDirect").innerHTML=d;
   document.getElementById("answerFormFinal").innerHTML=f;
 }
-function computeExpected(ds){const per=computePerCO(ds);const expected={direct:{},final:{}};CO_LIST.forEach(co=>{expected.direct[co]=per[co].directPct;expected.final[co]=per[co].finalPct});return {expected};}
+
+function computeExpected(ds){
+  const per=computePerCO(ds);
+  const expected={direct:{},final:{}};
+  CO_LIST.forEach(co=>{
+    expected.direct[co]=per[co].directPct;
+    expected.final[co]=per[co].finalPct;
+  });
+  return {expected};
+}
+
 function validate(kind){
   const tol=Number(document.getElementById("tolerance").value||0);
   const {expected}=computeExpected(dataset);
@@ -193,38 +223,44 @@ function validate(kind){
   const inputs=document.querySelectorAll("."+cls);
   let correct=0,total=inputs.length,bad=[],anyBlank=false;
   inputs.forEach(inp=>{
-    const co=inp.dataset.co;const val=inp.value.trim();
+    const co=inp.dataset.co;const val=(inp.value||"").trim();
     if(!val){anyBlank=true;bad.push(co);return;}
     const num=Number(val);const exp=expected[kind][co];
     const ok=Math.abs(num-exp)<=tol;if(ok)correct++;else bad.push(co);
     inp.style.borderColor=ok?"#204f39":"#6b2733";
   });
   if(kind==="direct"){
-    if(anyBlank){document.getElementById("checkSummaryDirect").innerText="Missing: "+bad.join(", ");return;}
+    if(anyBlank){document.getElementById("checkSummaryDirect").innerText="Please enter values for all COs. Missing: "+bad.join(", ");return;}
     document.getElementById("checkSummaryDirect").innerText=`${correct}/${total} correct`;
     const wrap=document.getElementById("expectedListDirect");wrap.innerHTML="";
-    for(const co in expected.direct){wrap.innerHTML+=`<div class="card card-chip">${co} Expected: ${fmtPct(expected.direct[co])}%</div>`;}
+    for(const co in expected.direct){wrap.innerHTML+=`<div class="card card-chip">${co} Direct (Expected): ${fmtPct(expected.direct[co])}%</div>`;}
     document.getElementById("expectedPanelDirect").style.display="block";
   }else{
-    if(anyBlank){document.getElementById("checkSummaryFinal").innerText="Missing: "+bad.join(", ");return;}
+    if(anyBlank){document.getElementById("checkSummaryFinal").innerText="Please enter values for all COs. Missing: "+bad.join(", ");return;}
     document.getElementById("checkSummaryFinal").innerText=`${correct}/${total} correct`;
     const wrap=document.getElementById("expectedListFinal");wrap.innerHTML="";
-    for(const co in expected.final){wrap.innerHTML+=`<div class="card card-chip">${co} Expected: ${fmtPct(expected.final[co])}%</div>`;}
+    for(const co in expected.final){wrap.innerHTML+=`<div class="card card-chip">${co} Final (Expected): ${fmtPct(expected.final[co])}%</div>`;}
     document.getElementById("expectedPanelFinal").style.display="block";
   }
 }
+
 function downloadCsv(){
   const {expected}=computeExpected(dataset);
-  let csv="CO,Direct%,Final%\\n";
-  CO_LIST.forEach(co=>{csv+=`${co},${expected.direct[co]},${expected.final[co]}\\n`;});
+  let csv="CO,Desc_obt,Desc_max,Obj_obt,Obj_max,Assign_obt,Assign_max,SEE_obt,SEE_max,Total_Denominator,Indirect%,Direct%,Final%\n";
+  dataset.rows.forEach(r=>{
+    const totalDen = r.max.desc + r.max.obj + r.max.assign + r.max.see;
+    csv += `${r.co},${r.desc},${r.max.desc},${r.obj},${r.max.obj},${r.assign},${r.max.assign},${r.see},${r.max.see},${totalDen},${r.indirect},${expected.direct[r.co]},${expected.final[r.co]}\n`;
+  });
   const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);
   const a=document.createElement("a");a.href=url;a.download="co_dataset.csv";a.click();
 }
+
 function refreshAll(){
   dataset=generateDataset();
   document.getElementById("seedLabel").textContent=getUrlSeed()||currentSeed;
   renderMarksTable(dataset);renderAnswerForms();
 }
+
 window.addEventListener("DOMContentLoaded",()=>{
   refreshAll();
   document.getElementById("regen").onclick=refreshAll;
