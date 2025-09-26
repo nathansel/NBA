@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CO Attainment – Workshop (Direct + Indirect)</title>
+  <style>
+    :root{
+      --bg:#0b1220; --card:#101a2d; --muted:#8aa0c5; --text:#e8f0ff; --accent:#4da3ff;
+      --ok:#1db954; --warn:#ffb020; --bad:#ff5470; --line:#223152;
+    }
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);
+      font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:1150px;margin:34px auto;padding:0 16px}
+    h1{font-size:26px;margin:0 0 6px}
+    h2{font-size:18px;margin:22px 0 10px;color:var(--accent)}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
+      box-shadow:0 10px 26px rgba(0,0,0,.28);padding:18px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+      font-size:12px;border:1px solid #2a3a5e;background:#0a1428;color:#bcd0ff}
+    .muted{color:var(--muted)}
+    .hr{height:1px;background:var(--line);margin:14px 0}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px dashed var(--line);padding:10px 8px;text-align:left}
+    th{color:#a9bfec;font-size:13px}
+    label{font-size:13px;color:var(--muted)}
+    input,button{background:#0a1326;border:1px solid #2a3a5e;color:var(--text);
+      padding:10px 12px;border-radius:12px}
+    button{cursor:pointer}
+    button.primary{background:var(--accent);border-color:transparent;color:#00122a;font-weight:600}
+    button.ghost{background:transparent}
+    .status{padding:10px 12px;border-radius:12px;background:#0a142a;border:1px solid #213357}
+    .good{color:var(--ok)} .bad{color:var(--bad)}
+    .k{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .card-chip{flex:1;min-width:160px;padding:12px}
+    .footer{opacity:.75;font-size:12px;margin-top:14px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="row" style="align-items:flex-end;justify-content:space-between">
+      <div>
+        <h1>CO Attainment – Random Dataset (Single Student)</h1>
+        <div class="muted">Refresh for a new dataset, or lock the seed to share the same numbers with all participants.</div>
+      </div>
+      <div class="pill">Seed: <span id="seedLabel" class="k">auto</span></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="controls">
+        <div class="row" style="gap:8px">
+          <button id="lockSeed" class="ghost" title="Toggle locking to the current random seed">Lock current seed</button>
+          <button id="regen" class="ghost" title="Regenerate a new dataset">Regenerate dataset</button>
+          <button id="downloadCsv" title="Download the generated marks as CSV">Download CSV</button>
+        </div>
+        <div style="flex:1"></div>
+        <div>
+          <label for="tolerance">Tolerance (± %)</label><br/>
+          <input id="tolerance" type="number" step="0.1" value="0.5" style="width:120px" />
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <h2>Marks by CO (Obtained / Max)</h2>
+      <div id="marksTableWrap"></div>
+
+      <div class="hr"></div>
+
+      <div class="row">
+        <div style="flex:1;min-width:330px">
+          <h2>Enter Final CO Attainment (%)</h2>
+          <div class="muted">Formula: <span class="k">Final % = 0.8 × Direct % + 0.2 × Indirect %</span></div>
+          <div id="answerForm" style="margin-top:8px"></div>
+          <div class="row" style="margin-top:10px;gap:8px;align-items:center">
+            <button id="check" class="primary">Verify</button>
+            <span id="checkSummary" class="status"></span>
+          </div>
+
+          <div id="expectedPanel" class="card" style="display:none;margin-top:12px">
+            <div class="muted">Correct Final CO Attainment (%)</div>
+            <div id="expectedList" class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"></div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-width:330px">
+          <h2>Notes (Instructor)</h2>
+          <div class="muted" style="line-height:1.5">
+            • Direct % is computed from all components: <span class="k">CIE Descriptive + CIE Objective + Assignment + SEE</span>.<br/>
+            • Indirect % is a single randomized value <span class="k">50–100</span> per CO.<br/>
+            • Use the <b>seed lock</b> to share a fixed dataset URL with the class (the URL will include <span class="k">#seed=...</span>).
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">Static HTML • Works offline • Host on GitHub Pages / Netlify / Vercel</div>
+  </div>
+
+<script>
+/** CONFIG (fixed to your workshop scheme) **/
+const CO_LIST = ["CO1","CO2","CO3","CO4","CO5"];
+const CO_MAX = {
+  // per-CO maxima: CIE descriptive, CIE objective, Assignment (max 4), SEE (20)
+  CO1: { desc:34, obj:20, assign:4, see:20 },
+  CO2: { desc:16+16, obj:10+10, assign:4, see:20 },
+  CO3: { desc:34, obj:20, assign:4, see:20 },
+  CO4: { desc:25, obj:20, assign:4, see:20 },
+  CO5: { desc:25, obj:20, assign:4, see:20 }
+};
+const RNG_SHAPE = { meanMin:0.45, meanMax:0.85, noise:0.30 };
+
+/********************* RNG with optional seeding *************************/
+function xmur3(str){ let h = 1779033703 ^ str.length; for(let i=0;i<str.length;i++){ h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19);} return function(){ h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return (h ^= h >>> 16) >>> 0; } }
+function mulberry32(a){ return function(){ let t = a += 0x6D2B79F5; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; } }
+function rngFactory(seed){ if(seed==null){ return Math.random; } const seedFn = xmur3(String(seed)); const rnd = mulberry32(seedFn()); return rnd; }
+function getUrlSeed(){ const h = location.hash; const m = h.match(/seed=([^&]+)/); return m? decodeURIComponent(m[1]) : null; }
+function setUrlSeed(seed){ const base = location.href.split('#')[0]; location.replace(base + '#seed=' + encodeURIComponent(seed)); }
+
+/********************* Core state *************************/
+let rng = rngFactory(getUrlSeed());
+let currentSeed = getUrlSeed() || Math.floor(Math.random()*1e9);
+let dataset = null;
+
+/********************* Utilities *************************/
+function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+function pickNormalLike(rnd){ return (rnd() + rnd() + rnd() + rnd())/4; } // ~N(0.5, small)
+function fmtPct(x){ return (Math.round(x*100)/100).toFixed(2); }
+
+/********************* Data generation *************************/
+function generateDataset(){
+  rng = rngFactory(getUrlSeed() || currentSeed);
+  const mean = RNG_SHAPE.meanMin + (RNG_SHAPE.meanMax - RNG_SHAPE.meanMin) * rng();
+  const rows = [];
+  CO_LIST.forEach(co=>{
+    const m = CO_MAX[co];
+    const desc = Math.round(clamp(pickNormalLike(rng) * (m.desc*0.6) + mean * (m.desc*0.4), 0, m.desc));
+    const obj  = Math.round(clamp(pickNormalLike(rng) * (m.obj*0.6)  + mean * (m.obj*0.4),  0, m.obj));
+    const assign = Math.floor(rng()*4) + 1; // 1..4 per CO
+    const see = Math.round(rng()*m.see); // 0..20
+    const indirect = Math.floor(rng()*51) + 50; // 50..100
+    rows.push({ co, desc, obj, assign, see, indirect, max:m });
+  });
+  return { rows };
+}
+
+/********************* Calculations *************************/
+function computePerCO(ds){
+  const per = {};
+  ds.rows.forEach(r=>{
+    const cieObt = r.desc + r.obj + r.assign;
+    const cieMax = r.max.desc + r.max.obj + r.max.assign;
+    const seeObt = r.see, seeMax = r.max.see;
+    const totalObt = cieObt + seeObt;
+    const totalMax = cieMax + seeMax;
+    const ciePct = cieMax>0 ? (cieObt / cieMax) * 100 : 0;
+    const seePct = seeMax>0 ? (seeObt / seeMax) * 100 : 0;
+    const directPct = totalMax>0 ? (totalObt / totalMax) * 100 : 0;
+    const indirectPct = r.indirect; // already a percent
+    const finalPct = 0.8*directPct + 0.2*indirectPct;
+    per[r.co] = {
+      ciePct: Number(fmtPct(ciePct)),
+      seePct: Number(fmtPct(seePct)),
+      directPct: Number(fmtPct(directPct)),
+      indirectPct: Number(fmtPct(indirectPct)),
+      finalPct: Number(fmtPct(finalPct)),
+      parts: r
+    };
+  });
+  return per;
+}
+
+/********************* Rendering *************************/
+function renderMarksTable(ds){
+  const head = `<table><thead><tr>
+      <th>CO</th>
+      <th>CIE Descriptive<br/><span class=\"muted\">(obt/max)</span></th>
+      <th>CIE Objective<br/><span class=\"muted\">(obt/max)</span></th>
+      <th>Assignment<br/><span class=\"muted\">(obt/max)</span></th>
+      <th>SEE<br/><span class=\"muted\">(obt/max)</span></th>
+      <th>CIE %</th><th>SEE %</th><th>Direct %</th>
+    </tr></thead><tbody>`;
+  const rows = ds.rows.map(r=>{
+    const cieObt = r.desc + r.obj + r.assign;
+    const cieMax = r.max.desc + r.max.obj + r.max.assign;
+    const ciePct = cieMax? (cieObt/cieMax*100) : 0;
+    const seePct = (r.see/r.max.see*100);
+    const directPct = ((cieObt + r.see) / (cieMax + r.max.see)) * 100;
+    return `<tr>
+      <td><b>${r.co}</b></td>
+      <td>${r.desc} / ${r.max.desc}</td>
+      <td>${r.obj} / ${r.max.obj}</td>
+      <td>${r.assign} / ${r.max.assign}</td>
+      <td>${r.see} / ${r.max.see}</td>
+      <td>${fmtPct(ciePct)}%</td>
+      <td>${fmtPct(seePct)}%</td>
+      <td>${fmtPct(directPct)}%</td>
+    </tr>`;
+  }).join('');
+  const tail = '</tbody></table>';
+
+  const per = computePerCO(ds);
+  let indirectHtml = '<div class="hr"></div><h2>Indirect (%)</h2>';
+  indirectHtml += '<table><thead><tr><th>CO</th><th>Indirect % (given)</th></tr></thead><tbody>';
+  ds.rows.forEach(r=>{
+    indirectHtml += `<tr><td><b>${r.co}</b></td><td>${fmtPct(per[r.co].indirectPct)}%</td></tr>`;
+  });
+  indirectHtml += '</tbody></table>';
+
+  document.getElementById('marksTableWrap').innerHTML = head + rows + tail + indirectHtml;
+}
+
+function renderAnswerForm(){
+  const fields = CO_LIST.map(co=>{
+    return `<div class="row" style="align-items:center;margin-bottom:6px">
+              <div style="width:80px"><b>${co}</b></div>
+              <input data-co="${co}" class="ans" type="number" step="0.01"
+                     placeholder="Final % (0.8 × Direct + 0.2 × Indirect)" style="width:280px" />
+              <span class="muted">%</span>
+            </div>`;
+  }).join('');
+  document.getElementById('answerForm').innerHTML = fields;
+}
+
+/********************* Validation *************************/
+function computeExpected(ds){
+  const per = computePerCO(ds);
+  const expected = {};
+  CO_LIST.forEach(co => expected[co] = per[co].finalPct);
+  return { per, expected };
+}
+
+function validateAnswers(){
+  const tol  = Number(document.getElementById('tolerance').value || 0);
+  const { expected } = computeExpected(dataset);
+  const inputs = Array.from(document.querySelectorAll('input.ans'));
+  let correct = 0, total = inputs.length; const bad = []; let anyBlank=false;
+  inputs.forEach(inp=>{
+    const co = inp.dataset.co; const val = (inp.value||'').trim();
+    if(val===''){ anyBlank=true; bad.push(co); return; }
+    const num = Number(val); if(Number.isNaN(num)){ bad.push(co); return; }
+    const exp = expected[co];
+    const ok = Math.abs(num - exp) <= tol;
+    if(ok) correct++; else bad.push(co);
+    inp.style.borderColor = ok? '#204f39' : '#6b2733';
+  });
+  if(anyBlank){
+    document.getElementById('checkSummary').innerHTML = `Please enter values for all COs. Missing: ${bad.join(', ')}`;
+    document.getElementById('expectedPanel').style.display = 'none';
+    return;
+  }
+  document.getElementById('checkSummary').innerHTML = `${correct}/${total} correct ${bad.length? '• Incorrect: '+bad.join(', '): ''}`;
+  // Reveal expected values panel
+  const wrap = document.getElementById('expectedList');
+  wrap.innerHTML = '';
+  Object.keys(expected).forEach(co=>{
+    const card = document.createElement('div');
+    card.className = 'card card-chip';
+    card.innerHTML = `<div class="muted">${co} Expected</div><div style="font-size:18px;font-weight:700">${fmtPct(expected[co])}%</div>`;
+    wrap.appendChild(card);
+  });
+  document.getElementById('expectedPanel').style.display = 'block';
+}
+
+/********************* CSV download *************************/
+function downloadCsv(){
+  const header = ['CO','CIE_Desc_obt','CIE_Desc_max','CIE_Obj_obt','CIE_Obj_max','Assign_obt','Assign_max','SEE_obt','SEE_max','Indirect_%','Direct_%','Final_%'];
+  const { per } = computeExpected(dataset);
+  const lines = [header.join(',')];
+  dataset.rows.forEach(r=>{
+    const p = per[r.co];
+    lines.push([r.co, r.desc, r.max.desc, r.obj, r.max.obj, r.assign, r.max.assign, r.see, r.max.see, p.indirectPct, p.directPct, p.finalPct].join(','));
+  });
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'random_co_dataset.csv'; a.click();
+  setTimeout(()=> URL.revokeObjectURL(url), 5000);
+}
+
+/********************* Wiring *************************/
+function refreshAll(){
+  dataset = generateDataset();
+  document.getElementById('seedLabel').textContent = getUrlSeed() || currentSeed;
+  renderMarksTable(dataset);
+  renderAnswerForm();
+}
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  refreshAll();
+  document.getElementById('regen').addEventListener('click', refreshAll);
+  document.getElementById('check').addEventListener('click', validateAnswers);
+  document.getElementById('downloadCsv').addEventListener('click', downloadCsv);
+  document.getElementById('lockSeed').addEventListener('click', ()=>{
+    const s = getUrlSeed();
+    if(s){ location.hash=''; document.getElementById('seedLabel').textContent = 'auto'; }
+    else { setUrlSeed(currentSeed); document.getElementById('seedLabel').textContent = currentSeed; }
+  });
+});
+</script>
+</body>
+</html>
