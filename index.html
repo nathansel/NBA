@@ -14,6 +14,7 @@
     .wrap{max-width:1150px;margin:34px auto;padding:0 16px}
     h1{font-size:26px;margin:0 0 6px}
     h2{font-size:18px;margin:22px 0 10px;color:var(--accent)}
+    h3{font-size:16px;margin:10px 0 6px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
       box-shadow:0 10px 26px rgba(0,0,0,.28);padding:18px}
     .row{display:flex;gap:12px;flex-wrap:wrap}
@@ -22,12 +23,14 @@
       font-size:12px;border:1px solid #2a3a5e;background:#0a1428;color:#bcd0ff}
     .muted{color:var(--muted)}
     .hr{height:1px;background:var(--line);margin:14px 0}
-    table{width:100%;border-collapse:collapse}
-    th,td{border-bottom:1px dashed var(--line);padding:10px 8px;text-align:left}
+    .scroll{width:100%;overflow-x:auto}
+    table{width:100%;border-collapse:collapse;min-width:760px}
+    th,td{border-bottom:1px dashed var(--line);padding:10px 8px;text-align:left;vertical-align:top}
     th{color:#a9bfec;font-size:13px}
     label{font-size:13px;color:var(--muted)}
     input,button{background:#0a1326;border:1px solid #2a3a5e;color:var(--text);
       padding:10px 12px;border-radius:12px}
+    input{width:220px;max-width:100%}
     button{cursor:pointer}
     button.primary{background:var(--accent);border-color:transparent;color:#00122a;font-weight:600}
     button.ghost{background:transparent}
@@ -35,6 +38,21 @@
     .k{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
     .card-chip{flex:1;min-width:160px;padding:12px}
     .footer{opacity:.75;font-size:12px;margin-top:14px}
+
+    /* Responsive tweaks */
+    @media (max-width: 900px){
+      .wrap{margin:22px auto}
+      h1{font-size:22px}
+      .controls{gap:8px}
+      input{width:180px}
+    }
+    @media (max-width: 640px){
+      .pill{display:none}
+      .controls{flex-direction:column;align-items:flex-start}
+      .controls .row{width:100%}
+      input{width:100%}
+      .card-chip{min-width:140px}
+    }
   </style>
 </head>
 <body>
@@ -50,14 +68,14 @@
     <div class="card" style="margin-top:16px">
       <div class="controls">
         <div class="row" style="gap:8px">
-          <button id="lockSeed" class="ghost">Lock current seed</button>
-          <button id="regen" class="ghost">Regenerate dataset</button>
-          <button id="downloadCsv">Download CSV</button>
+          <button id="lockSeed" class="ghost" title="Toggle lock to current random seed">Lock current seed</button>
+          <button id="regen" class="ghost" title="Regenerate a new dataset">Regenerate dataset</button>
+          <button id="downloadCsv" title="Download the dataset as CSV">Download CSV</button>
         </div>
         <div style="flex:1"></div>
         <div>
           <label for="tolerance">Tolerance (± %)</label><br/>
-          <input id="tolerance" type="number" step="0.1" value="0.5" style="width:120px" />
+          <input id="tolerance" type="number" step="0.1" value="0.5" />
         </div>
       </div>
 
@@ -68,50 +86,45 @@
 
       <div class="hr"></div>
 
-      <div class="row">
-        <div style="flex:1;min-width:330px">
-          <h2>Enter & Verify - Direct and Final</h2>
-          <div class="muted">Compute Direct % from the table (all components). Final % = <span class="k">0.8 × Direct + 0.2 × Indirect</span>.</div>
+      <!-- A) VERIFY DIRECT placed above Indirect table -->
+      <h3>A) Direct CO Attainment (%)</h3>
+      <div class="muted">Compute Direct % yourself from the random marks. Direct uses <span class="k">all components</span>: CIE Descriptive + CIE Objective + Assignment + SEE.</div>
+      <div id="answerFormDirect" style="margin-top:8px"></div>
+      <div class="row" style="margin-top:8px;gap:8px;align-items:center">
+        <button id="checkDirect" class="primary">Verify Direct</button>
+        <span id="checkSummaryDirect" class="status"></span>
+      </div>
+      <div id="expectedPanelDirect" class="card" style="display:none;margin-top:10px">
+        <div class="muted">Correct Direct CO Attainment (%)</div>
+        <div id="expectedListDirect" class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"></div>
+      </div>
 
-          <h3>A) Direct CO Attainment (%)</h3>
-          <div id="answerFormDirect"></div>
-          <div class="row" style="margin-top:8px;gap:8px;align-items:center">
-            <button id="checkDirect" class="primary">Verify Direct</button>
-            <span id="checkSummaryDirect" class="status"></span>
-          </div>
-          <div id="expectedPanelDirect" class="card" style="display:none;margin-top:10px">
-            <div class="muted">Correct Direct CO Attainment (%)</div>
-            <div id="expectedListDirect" class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"></div>
-          </div>
+      <div class="hr"></div>
 
-          <div class="hr"></div>
+      <!-- Indirect table stays visible -->
+      <h2>Indirect (%)</h2>
+      <div id="indirectWrap"></div>
 
-          <h3>B) Final CO Attainment (%) - Direct + Indirect</h3>
-          <div id="answerFormFinal"></div>
-          <div class="row" style="margin-top:8px;gap:8px;align-items:center">
-            <button id="checkFinal" class="primary">Verify Final</button>
-            <span id="checkSummaryFinal" class="status"></span>
-          </div>
-          <div id="expectedPanelFinal" class="card" style="display:none;margin-top:10px">
-            <div class="muted">Correct Final CO Attainment (%)</div>
-            <div id="expectedListFinal" class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"></div>
-          </div>
-        </div>
+      <div class="hr"></div>
 
-        <div style="flex:1;min-width:330px">
-          <h2>Notes (Instructor)</h2>
-          <div class="muted" style="line-height:1.5">
-            • Table shows only random marks (obt/max) and <b>Total Denominator</b> per CO (sum of maxima).<br/>
-            • Indirect % is a single randomized value <span class="k">50-100</span> per CO.<br/>
-            • Use the <b>seed lock</b> to share a fixed dataset URL.
-          </div>
-        </div>
+      <h3>B) Final CO Attainment (%) — Direct + Indirect</h3>
+      <div class="muted">Use the given Indirect % values. Formula: <span class="k">Final % = 0.8 × Direct + 0.2 × Indirect</span>.</div>
+      <div id="answerFormFinal" style="margin-top:8px"></div>
+      <div class="row" style="margin-top:8px;gap:8px;align-items:center">
+        <button id="checkFinal" class="primary">Verify Final</button>
+        <span id="checkSummaryFinal" class="status"></span>
+      </div>
+      <div id="expectedPanelFinal" class="card" style="display:none;margin-top:10px">
+        <div class="muted">Correct Final CO Attainment (%)</div>
+        <div id="expectedListFinal" class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"></div>
       </div>
     </div>
-    <div class="footer">Static HTML • Works offline • Host on GitHub Pages / Netlify / Vercel</div>
+
+    <div class="footer">Static HTML • Responsive • Works offline • Host on GitHub Pages / Netlify / Vercel</div>
   </div>
 
 <script>
+/* ---------------- CONFIG ---------------- */
 const CO_LIST = ["CO1","CO2","CO3","CO4","CO5"];
 const CO_MAX = {
   CO1: { desc:34, obj:20, assign:4, see:20 },
@@ -121,21 +134,25 @@ const CO_MAX = {
   CO5: { desc:25, obj:20, assign:4, see:20 }
 };
 
+/* --------------- RNG & seed --------------- */
 function rngFactory(seed){
   if(seed==null) return Math.random;
   function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=(h<<13)|(h>>>19);}return function(){h=Math.imul(h^(h>>>16),2246822507);h=Math.imul(h^(h>>>13),3266489909);return (h^=h>>>16)>>>0;}}
   function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296;}}
   const seedFn = xmur3(String(seed)); return mulberry32(seedFn());
 }
-function getUrlSeed(){const m=location.hash.match(/seed=(.+)/);return m?m[1]:null;}
-function setUrlSeed(seed){location.replace(location.href.split('#')[0]+'#seed='+seed);}
+function getUrlSeed(){const m=location.hash.match(/seed=(.+)/);return m?decodeURIComponent(m[1]):null;}
+function setUrlSeed(seed){location.replace(location.href.split('#')[0]+'#seed='+encodeURIComponent(seed));}
 
 let rng = rngFactory(getUrlSeed());
 let currentSeed = getUrlSeed() || Math.floor(Math.random()*1e9);
 let dataset = null;
 
+/* --------------- Utils --------------- */
 function fmtPct(x){return (Math.round(x*100)/100).toFixed(2);}
+function totalDenominator(m){return m.desc + m.obj + m.assign + m.see;}
 
+/* --------------- Data generation --------------- */
 function generateDataset(){
   rng = rngFactory(getUrlSeed()||currentSeed);
   const rows=[];
@@ -151,6 +168,7 @@ function generateDataset(){
   return {rows};
 }
 
+/* --------------- Calculations --------------- */
 function computePerCO(ds){
   const per={};
   ds.rows.forEach(r=>{
@@ -160,52 +178,56 @@ function computePerCO(ds){
     const totalObt=cieObt+seeObt;
     const totalMax=cieMax+seeMax;
     const directPct=totalMax?(totalObt/totalMax*100):0;
-    const indirectPct=r.indirect;
-    const finalPct=0.8*directPct+0.2*indirectPct;
-    per[r.co]={directPct:Number(fmtPct(directPct)), indirectPct, finalPct:Number(fmtPct(finalPct)), totalMax};
+    const finalPct=0.8*directPct+0.2*r.indirect;
+    per[r.co]={directPct:Number(fmtPct(directPct)), indirect:r.indirect, finalPct:Number(fmtPct(finalPct)), totalDen:totalMax};
   });
   return per;
 }
 
+/* --------------- Rendering --------------- */
 function renderMarksTable(ds){
   const per = computePerCO(ds);
-  let html = '<table><thead><tr>' +
+  let html = '<div class="scroll"><table><thead><tr>' +
     '<th>CO</th><th>CIE Descriptive (obt/max)</th><th>CIE Objective (obt/max)</th>' +
-    '<th>Assignment (obt/max)</th><th>SEE (obt/max)</th><th>Total Denominator (sum of maxima)</th>' +
+    '<th>Assignment (obt/max)</th><th>SEE (obt/max)</th><th>Total Denominator</th>' +
     '</tr></thead><tbody>';
   ds.rows.forEach(r=>{
-    const totalDen = per[r.co].totalMax; // (desc+obj+assign+see) maxima
     html += `<tr>
       <td><b>${r.co}</b></td>
       <td>${r.desc}/${r.max.desc}</td>
       <td>${r.obj}/${r.max.obj}</td>
       <td>${r.assign}/${r.max.assign}</td>
       <td>${r.see}/${r.max.see}</td>
-      <td>${totalDen}</td>
+      <td>${per[r.co].totalDen}</td>
     </tr>`;
   });
-  html += '</tbody></table>';
-
-  // Indirect shown separately
-  html += '<div class="hr"></div><h2>Indirect (%)</h2><table><thead><tr><th>CO</th><th>Indirect % (given)</th></tr></thead><tbody>';
-  ds.rows.forEach(r=>{
-    html += `<tr><td><b>${r.co}</b></td><td>${r.indirect}%</td></tr>`;
-  });
-  html += '</tbody></table>';
-
+  html += '</tbody></table></div>';
   document.getElementById("marksTableWrap").innerHTML = html;
+}
+
+function renderIndirect(ds){
+  const per = computePerCO(ds);
+  let html = '<div class="scroll"><table><thead><tr><th>CO</th><th>Indirect % (given)</th></tr></thead><tbody>';
+  ds.rows.forEach(r=>{
+    html += `<tr><td><b>${r.co}</b></td><td>${fmtPct(per[r.co].indirect)}%</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  document.getElementById("indirectWrap").innerHTML = html;
 }
 
 function renderAnswerForms(){
   let d="",f="";
   CO_LIST.forEach(co=>{
-    d += `<div><b>${co}</b> <input data-co="${co}" class="ans-direct" type="number" step="0.01" placeholder="Direct %"> %</div>`;
-    f += `<div><b>${co}</b> <input data-co="${co}" class="ans-final" type="number" step="0.01" placeholder="Final % = 0.8×Direct + 0.2×Indirect"> %</div>`;
+    d += `<div class="row" style="align-items:center"><div style="width:70px"><b>${co}</b></div>
+            <input data-co="${co}" class="ans-direct" type="number" step="0.01" placeholder="Direct %"> <span class="muted">%</span></div>`;
+    f += `<div class="row" style="align-items:center"><div style="width:70px"><b>${co}</b></div>
+            <input data-co="${co}" class="ans-final" type="number" step="0.01" placeholder="Final % = 0.8×Direct + 0.2×Indirect"> <span class="muted">%</span></div>`;
   });
   document.getElementById("answerFormDirect").innerHTML=d;
   document.getElementById("answerFormFinal").innerHTML=f;
 }
 
+/* --------------- Validation --------------- */
 function computeExpected(ds){
   const per=computePerCO(ds);
   const expected={direct:{},final:{}};
@@ -244,21 +266,28 @@ function validate(kind){
   }
 }
 
+/* --------------- CSV --------------- */
 function downloadCsv(){
   const {expected}=computeExpected(dataset);
   let csv="CO,Desc_obt,Desc_max,Obj_obt,Obj_max,Assign_obt,Assign_max,SEE_obt,SEE_max,Total_Denominator,Indirect%,Direct%,Final%\n";
   dataset.rows.forEach(r=>{
-    const totalDen = r.max.desc + r.max.obj + r.max.assign + r.max.see;
+    const totalDen = totalDenominator(r.max);
     csv += `${r.co},${r.desc},${r.max.desc},${r.obj},${r.max.obj},${r.assign},${r.max.assign},${r.see},${r.max.see},${totalDen},${r.indirect},${expected.direct[r.co]},${expected.final[r.co]}\n`;
   });
-  const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");a.href=url;a.download="co_dataset.csv";a.click();
+  const blob=new Blob([csv],{type:"text/csv"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;a.download="co_dataset.csv";a.click();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
 }
 
+/* --------------- Wiring --------------- */
 function refreshAll(){
   dataset=generateDataset();
   document.getElementById("seedLabel").textContent=getUrlSeed()||currentSeed;
-  renderMarksTable(dataset);renderAnswerForms();
+  renderMarksTable(dataset);
+  renderIndirect(dataset);
+  renderAnswerForms();
 }
 
 window.addEventListener("DOMContentLoaded",()=>{
